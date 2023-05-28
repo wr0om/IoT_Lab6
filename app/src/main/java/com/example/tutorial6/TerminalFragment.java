@@ -81,9 +81,7 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
     private boolean to_receive = false;
 
     LineChart mpLineChart;
-    LineDataSet lineDataSet_x;
-    LineDataSet lineDataSet_y;
-    LineDataSet lineDataSet_z;
+    LineDataSet lineDataSet;
 
     ArrayList<ILineDataSet> dataSets = new ArrayList<>();
     LineData data;
@@ -241,12 +239,15 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
                     String[] second_row = new String[]{"EXPERIMENT TIME:", currentDateandTime};
                     String[] third_row = new String[]{"ACTIVITY TYPE:", ect_type};
                     String[] fourth_row = new String[]{"COUNT OF ACTUAL STEPS:", steps_str};
-                    String[] fifth_row = new String[]{};
+                    String[] fifth_row = new String[]{"ESTIMATED NUMBER OF STEPS:", steps_str};//CHANGE STEPS HERE
+
+                    String[] empty_row = new String[]{};
                     csvWriter.writeNext(first_row);
                     csvWriter.writeNext(second_row);
                     csvWriter.writeNext(third_row);
                     csvWriter.writeNext(fourth_row);
                     csvWriter.writeNext(fifth_row);
+                    csvWriter.writeNext(empty_row);
                     copy_csv(csvWriter);
                     csvWriter.close();
 
@@ -274,20 +275,11 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
 
 
         mpLineChart = (LineChart) view.findViewById(R.id.line_chart);
-        lineDataSet_x =  new LineDataSet(emptyDataValues(), "acceleration_x");
-        lineDataSet_x.setColor(Color.RED);
-        lineDataSet_x.setDrawCircles(false);
-        lineDataSet_y =  new LineDataSet(emptyDataValues(), "acceleration_y");
-        lineDataSet_y.setColor(Color.BLUE);
-        lineDataSet_y.setDrawCircles(false);
-        lineDataSet_z =  new LineDataSet(emptyDataValues(), "acceleration_z");
-        lineDataSet_z.setColor(Color.GREEN);
-        lineDataSet_z.setDrawCircles(false);
+        lineDataSet =  new LineDataSet(emptyDataValues(), "N");
+        lineDataSet.setColor(Color.RED);
+        lineDataSet.setDrawCircles(false);
 
-
-        dataSets.add(lineDataSet_x);
-        dataSets.add(lineDataSet_y);
-        dataSets.add(lineDataSet_z);
+        dataSets.add(lineDataSet);
 
         data = new LineData(dataSets);
         mpLineChart.setData(data);
@@ -320,15 +312,13 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
     }
 
     private void clear_graph() {
-        lineDataSet_x.clear();
-        lineDataSet_y.clear();
-        lineDataSet_z.clear();
+        lineDataSet.clear();
         data.notifyDataChanged();
         mpLineChart.invalidate();
     }
 
     private void copy_csv(CSVWriter csvWriter) {
-        String[] header = new String[]{"Time [sec]", "ACC X", "ACC Y", "ACC Z"};
+        String[] header = new String[]{"Time [sec]", "N"};
         csvWriter.writeNext(header);
         String path = "/sdcard/csv_dir/data.csv";
         try {
@@ -471,20 +461,15 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
                     }
                     parts[0] = Float.toString((Float.parseFloat(parts[0]) - starting_time) / 1000);
                     // parse string values, in this case [0] is tmp & [1] is count (t)
-                    String row[]= new String[]{parts[0],parts[1],parts[2],parts[3]};
+                    String row[]= new String[]{parts[0],parts[1]};
 
                     csvWriter.writeNext(row);
                     csvWriter.close();
 
                     // add received values to line dataset for plotting the linechart
                     data.addEntry(new Entry(Float.parseFloat(parts[0]),Float.parseFloat(parts[1])),0);
-                    lineDataSet_x.notifyDataSetChanged(); // let the data know a dataSet changed
+                    lineDataSet.notifyDataSetChanged(); // let the data know a dataSet changed
 
-                    data.addEntry(new Entry(Float.parseFloat(parts[0]),Float.parseFloat(parts[2])),1);
-                    lineDataSet_y.notifyDataSetChanged(); // let the data know a dataSet changed
-
-                    data.addEntry(new Entry(Float.parseFloat(parts[0]),Float.parseFloat(parts[3])),2);
-                    lineDataSet_z.notifyDataSetChanged(); // let the data know a dataSet changed
 
                     mpLineChart.notifyDataSetChanged(); // let the chart know it's data changed
                     mpLineChart.invalidate(); // refresh

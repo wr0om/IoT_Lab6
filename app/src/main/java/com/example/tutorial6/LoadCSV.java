@@ -74,21 +74,13 @@ public class LoadCSV extends AppCompatActivity {
                 ArrayList<String[]> csvData = new ArrayList<>();
                 String file_name_selected = filenames_list[position];
                 csvData= CsvRead("/sdcard/csv_dir/" + file_name_selected + ".csv");
-                LineDataSet lineDataSet_x =  new LineDataSet(DataValues(csvData, 1),"acceleration_x");
-                lineDataSet_x.setColor(Color.RED);
-                lineDataSet_x.setDrawCircles(false);
-                LineDataSet lineDataSet_y =  new LineDataSet(DataValues(csvData, 2),"acceleration_y");
-                lineDataSet_y.setColor(Color.BLUE);
-                lineDataSet_y.setDrawCircles(false);
-                LineDataSet lineDataSet_z =  new LineDataSet(DataValues(csvData, 3),"acceleration_z");
-                lineDataSet_z.setColor(Color.GREEN);
-                lineDataSet_z.setDrawCircles(false);
-
+                LineDataSet lineDataSet =  new LineDataSet(DataValues(csvData),"N");
+                lineDataSet.setColor(Color.RED);
+                lineDataSet.setDrawCircles(false);
 
                 ArrayList<ILineDataSet> dataSets = new ArrayList<>();
-                dataSets.add(lineDataSet_x);
-                dataSets.add(lineDataSet_y);
-                dataSets.add(lineDataSet_z);
+                dataSets.add(lineDataSet);
+
 
                 LineData data = new LineData(dataSets);
                 lineChart.setData(data);
@@ -165,17 +157,17 @@ public class LoadCSV extends AppCompatActivity {
         return CsvData;
     }
 
-    private ArrayList<Entry> DataValues(ArrayList<String[]> csvData, int xyz){
+    private ArrayList<Entry> DataValues(ArrayList<String[]> csvData){
         // if xyz == 0 - then x
         // else if xyz == 1 then y
         // else if xyz == 2 then z
         ArrayList<Entry> dataVals = new ArrayList<Entry>();
         for (int i = 0; i < csvData.size(); i++){
 
-            if (i <= 5)
+            if (i <= 6)
                 continue;
             dataVals.add(new Entry(Float.parseFloat(csvData.get(i)[0]),
-                    Float.parseFloat(csvData.get(i)[xyz])));
+                    Float.parseFloat(csvData.get(i)[1])));
 
         }
 
