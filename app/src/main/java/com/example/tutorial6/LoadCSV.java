@@ -174,7 +174,7 @@ public class LoadCSV extends AppCompatActivity {
 
             if (i <= 5)
                 continue;
-            dataVals.add(new Entry(Integer.parseInt(csvData.get(i)[0]),
+            dataVals.add(new Entry(Float.parseFloat(csvData.get(i)[0]),
                     Float.parseFloat(csvData.get(i)[xyz])));
 
         }

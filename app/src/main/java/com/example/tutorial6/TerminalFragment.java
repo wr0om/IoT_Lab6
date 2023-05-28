@@ -87,6 +87,8 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
 
     ArrayList<ILineDataSet> dataSets = new ArrayList<>();
     LineData data;
+    private float starting_time = 0;
+    private boolean receiveTime;
 
     private static final String filenames_csv = "/sdcard/csv_dir/filenames.csv";
     /*
@@ -189,6 +191,7 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
             public void onClick(View v) {
                 Toast.makeText(getContext(),"Start",Toast.LENGTH_SHORT).show();
                 to_receive = true;
+                receiveTime = true;
 
             }
         });
@@ -205,7 +208,8 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
             public void onClick(View v) {
                 Toast.makeText(getContext(),"Reset",Toast.LENGTH_SHORT).show();
                 File f = new File("/sdcard/csv_dir/data.csv");
-                mpLineChart.clear();//DO THIS!!
+                to_receive=false;
+                clear_graph();
                 if(f.delete())
                     Toast.makeText(getContext(), "RESET COMPLETE", Toast.LENGTH_SHORT).show();
 
@@ -250,8 +254,8 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
                     CSVWriter csvWriter2 = new CSVWriter(new FileWriter(filenames_csv,true));
                     csvWriter2.writeNext(new String[]{filename});
                     csvWriter2.close();
-                    mpLineChart.clear();
                     File f = new File("/sdcard/csv_dir/data.csv");
+                    clear_graph();
                     if(f.delete())
                         Toast.makeText(getContext(), "SAVE COMPLETE", Toast.LENGTH_SHORT).show();
 
@@ -313,6 +317,14 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         });
 
         return view;
+    }
+
+    private void clear_graph() {
+        lineDataSet_x.clear();
+        lineDataSet_y.clear();
+        lineDataSet_z.clear();
+        data.notifyDataChanged();
+        mpLineChart.invalidate();
     }
 
     private void copy_csv(CSVWriter csvWriter) {
@@ -453,6 +465,11 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
                     String csv = "/sdcard/csv_dir/data.csv";
                     CSVWriter csvWriter = new CSVWriter(new FileWriter(csv,true));
 
+                    if (receiveTime) {
+                        receiveTime = false;
+                        starting_time = Float.parseFloat(parts[0]);
+                    }
+                    parts[0] = Float.toString((Float.parseFloat(parts[0]) - starting_time) / 1000);
                     // parse string values, in this case [0] is tmp & [1] is count (t)
                     String row[]= new String[]{parts[0],parts[1],parts[2],parts[3]};
 
@@ -460,13 +477,13 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
                     csvWriter.close();
 
                     // add received values to line dataset for plotting the linechart
-                    data.addEntry(new Entry(Integer.valueOf(parts[0]),Float.parseFloat(parts[1])),0);
+                    data.addEntry(new Entry(Float.parseFloat(parts[0]),Float.parseFloat(parts[1])),0);
                     lineDataSet_x.notifyDataSetChanged(); // let the data know a dataSet changed
 
-                    data.addEntry(new Entry(Integer.valueOf(parts[0]),Float.parseFloat(parts[2])),1);
+                    data.addEntry(new Entry(Float.parseFloat(parts[0]),Float.parseFloat(parts[2])),1);
                     lineDataSet_y.notifyDataSetChanged(); // let the data know a dataSet changed
 
-                    data.addEntry(new Entry(Integer.valueOf(parts[0]),Float.parseFloat(parts[3])),2);
+                    data.addEntry(new Entry(Float.parseFloat(parts[0]),Float.parseFloat(parts[3])),2);
                     lineDataSet_z.notifyDataSetChanged(); // let the data know a dataSet changed
 
                     mpLineChart.notifyDataSetChanged(); // let the chart know it's data changed
