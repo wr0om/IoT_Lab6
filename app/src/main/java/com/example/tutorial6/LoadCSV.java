@@ -11,6 +11,7 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.Spinner;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.github.mikephil.charting.charts.LineChart;
@@ -36,6 +37,7 @@ import java.util.List;
 public class LoadCSV extends AppCompatActivity {
     private Spinner dropdown;
     private Button btn_delete;
+    private TextView tv_estimated_steps;
     private static final String filenames_csv = "/sdcard/csv_dir/filenames.csv";
     String[] filenames_list;
 
@@ -59,6 +61,7 @@ public class LoadCSV extends AppCompatActivity {
         setContentView(R.layout.activity_load_csv);
         Button BackButton = (Button) findViewById(R.id.button_back);
         LineChart lineChart = (LineChart) findViewById(R.id.line_chart);
+        tv_estimated_steps = findViewById(R.id.tv_estimated_steps);
 
 
         dropdown = findViewById(R.id.spinner);
@@ -164,6 +167,9 @@ public class LoadCSV extends AppCompatActivity {
         ArrayList<Entry> dataVals = new ArrayList<Entry>();
         for (int i = 0; i < csvData.size(); i++){
 
+            if(i == 4){
+                tv_estimated_steps.setText("ESTIMATED NUMBER OF STEPS: " + csvData.get(i)[1].toString());
+            }
             if (i <= 6)
                 continue;
             dataVals.add(new Entry(Float.parseFloat(csvData.get(i)[0]),

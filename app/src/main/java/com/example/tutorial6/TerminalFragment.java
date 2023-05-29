@@ -33,6 +33,9 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
+import com.chaquo.python.PyObject;
+import com.chaquo.python.Python;
+import com.chaquo.python.android.AndroidPlatform;
 import com.github.mikephil.charting.charts.LineChart;
 import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
@@ -48,6 +51,7 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 
 public class TerminalFragment extends Fragment implements ServiceConnection, SerialListener {
 
@@ -59,6 +63,7 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
     private String deviceAddress;
     private SerialService service;
 
+    private TextView tv_estimated_steps;
     private TextView receiveText;
     private TextView sendText;
     private TextUtil.HexWatcher hexWatcher;
@@ -87,6 +92,8 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
     LineData data;
     private float starting_time = 0;
     private boolean receiveTime;
+    private PyObject pyobj;
+    private String est_steps = "0";
 
     private static final String filenames_csv = "/sdcard/csv_dir/filenames.csv";
     /*
@@ -98,6 +105,13 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         setHasOptionsMenu(true);
         setRetainInstance(true);
         deviceAddress = getArguments().getString("device");
+
+        if (!Python.isStarted()){
+            Python.start(new AndroidPlatform(getContext()));
+        }
+
+        Python py = Python.getInstance();
+        pyobj = py.getModule("test");
 
     }
 
@@ -171,6 +185,8 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         receiveText = view.findViewById(R.id.receive_text);                          // TextView performance decreases with number of spans
         receiveText.setTextColor(getResources().getColor(R.color.colorRecieveText)); // set as default color to reduce number of spans
         receiveText.setMovementMethod(ScrollingMovementMethod.getInstance());
+        tv_estimated_steps = view.findViewById(R.id.tv_estimated_steps);
+
 
         sendText = view.findViewById(R.id.send_text);
         hexWatcher = new TextUtil.HexWatcher(sendText);
@@ -208,6 +224,11 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
                 File f = new File("/sdcard/csv_dir/data.csv");
                 to_receive=false;
                 clear_graph();
+                est_steps = "0";
+                update_est_steps();
+
+
+
                 if(f.delete())
                     Toast.makeText(getContext(), "RESET COMPLETE", Toast.LENGTH_SHORT).show();
 
@@ -221,7 +242,7 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
                 String filename = et_receive_filename.getText().toString();
                 String ect_type = dropdown.getSelectedItem().toString();
 
-                if(steps_str == "" || filename == "" || ect_type == "") {
+                if(steps_str.isEmpty() || filename.isEmpty() || ect_type.isEmpty()) {
                     Toast.makeText(getContext(), "NOT ENTERED ALL VALUES", Toast.LENGTH_SHORT).show();
                     return;
                 }
@@ -239,7 +260,7 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
                     String[] second_row = new String[]{"EXPERIMENT TIME:", currentDateandTime};
                     String[] third_row = new String[]{"ACTIVITY TYPE:", ect_type};
                     String[] fourth_row = new String[]{"COUNT OF ACTUAL STEPS:", steps_str};
-                    String[] fifth_row = new String[]{"ESTIMATED NUMBER OF STEPS:", steps_str};//CHANGE STEPS HERE
+                    String[] fifth_row = new String[]{"ESTIMATED NUMBER OF STEPS:", est_steps};//CHANGE STEPS HERE
 
                     String[] empty_row = new String[]{};
                     csvWriter.writeNext(first_row);
@@ -256,7 +277,10 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
                     csvWriter2.writeNext(new String[]{filename});
                     csvWriter2.close();
                     File f = new File("/sdcard/csv_dir/data.csv");
+
                     clear_graph();
+                    est_steps = "0";
+                    update_est_steps();
                     if(f.delete())
                         Toast.makeText(getContext(), "SAVE COMPLETE", Toast.LENGTH_SHORT).show();
 
@@ -460,7 +484,7 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
                         starting_time = Float.parseFloat(parts[0]);
                     }
                     parts[0] = Float.toString((Float.parseFloat(parts[0]) - starting_time) / 1000);
-                    // parse string values, in this case [0] is tmp & [1] is count (t)
+                    // parse string values, in this case [0] is tmp & [1] is N
                     String row[]= new String[]{parts[0],parts[1]};
 
                     csvWriter.writeNext(row);
@@ -470,6 +494,17 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
                     data.addEntry(new Entry(Float.parseFloat(parts[0]),Float.parseFloat(parts[1])),0);
                     lineDataSet.notifyDataSetChanged(); // let the data know a dataSet changed
 
+                    List<Entry> points = lineDataSet.getValues();
+                    Float[] t_arr = new Float[points.size()];
+                    Float[] N_arr = new Float[points.size()];
+                    for(int i = 0; i < points.size();i++){
+                        Entry curr = points.get(i);
+                        t_arr[i] = curr.getX();
+                        N_arr[i] = curr.getY();
+                    }
+                    PyObject obj = pyobj.callAttr("identify_peek", t_arr, N_arr);
+                    est_steps = obj.toString();
+                    update_est_steps();
 
                     mpLineChart.notifyDataSetChanged(); // let the chart know it's data changed
                     mpLineChart.invalidate(); // refresh
@@ -492,6 +527,10 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
             }
             receiveText.append(TextUtil.toCaretString(msg, newline.length() != 0));
         }
+    }
+
+    private void update_est_steps() {
+        tv_estimated_steps.setText("ESTIMATED NUMBER OF STEPS: " + est_steps);
     }
 
     private void status(String str) {

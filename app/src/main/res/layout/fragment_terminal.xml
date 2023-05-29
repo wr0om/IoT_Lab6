@@ -13,6 +13,13 @@
         android:layout_height="280dp"
         android:background="@color/white" />
 
+    <TextView
+        android:id="@+id/tv_estimated_steps"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:text="ESTIMATED NUMBER OF STEPS: 0"
+        android:textSize="20sp"
+        android:textAlignment="center" />
     <LinearLayout
         android:layout_width="fill_parent"
         android:layout_height="60dp"

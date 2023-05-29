@@ -10,6 +10,10 @@ import androidx.fragment.app.FragmentManager;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
+import com.chaquo.python.PyObject;
+import com.chaquo.python.Python;
+import com.chaquo.python.android.AndroidPlatform;
+
 
 public class MainActivity extends AppCompatActivity implements FragmentManager.OnBackStackChangedListener {
 
@@ -29,7 +33,10 @@ public class MainActivity extends AppCompatActivity implements FragmentManager.O
         else
             onBackStackChanged();
 
-        }
+
+
+    }
+
 
     @Override
     public void onBackStackChanged() {
