@@ -1,5 +1,6 @@
 package com.example.tutorial6;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.bluetooth.BluetoothAdapter;
@@ -8,8 +9,13 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.IBinder;
 import android.text.Editable;
 import android.text.Spannable;
@@ -20,17 +26,20 @@ import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.app.ActivityCompat;
 import androidx.fragment.app.Fragment;
 
 import com.chaquo.python.PyObject;
@@ -45,11 +54,14 @@ import com.opencsv.CSVReader;
 import com.opencsv.CSVWriter;
 
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 
@@ -68,15 +80,22 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
     private TextView sendText;
     private TextUtil.HexWatcher hexWatcher;
 
-    private EditText et_receive_steps;
-    private EditText et_receive_filename;
-    private Button btn_start;
-    private Button btn_stop;
+    private EditText et_filename;
+    private Button btn_start_stop;
     private Button btn_reset;
     private Button btn_save;
+    private Button btn_draw;
 
 
-    private Spinner dropdown;
+
+    private ImageView imageView;
+    private float floatStartX = -1, floatStartY = -1,
+                floatEndX = -1, floatEndY = -1;
+    private Bitmap bitmap;
+    private Canvas canvas;
+    private Paint paint = new Paint();
+
+
 
     private Connected connected = Connected.False;
     private boolean initialStart = true;
@@ -85,15 +104,18 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
     private String newline = TextUtil.newline_crlf;
     private boolean to_receive = false;
 
-    LineChart mpLineChart;
-    LineDataSet lineDataSet;
 
     ArrayList<ILineDataSet> dataSets = new ArrayList<>();
     LineData data;
     private float starting_time = 0;
     private boolean receiveTime;
     private PyObject pyobj;
-    private String est_steps = "0";
+
+
+    private Float[] old_acc = new Float[] {(float)0,(float)0,(float)0};
+    private Float[] new_acc = new Float[] {(float)0,(float)0,(float)0};
+
+
 
     private static final String filenames_csv = "/sdcard/csv_dir/filenames.csv";
     /*
@@ -113,6 +135,61 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         Python py = Python.getInstance();
         pyobj = py.getModule("test");
 
+
+        ActivityCompat.requestPermissions(getActivity(), new String[]{Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE}, PackageManager.PERMISSION_GRANTED);
+
+    }
+
+
+    private void drawPaintSketchImage(){
+
+        if(bitmap == null){
+            bitmap = Bitmap.createBitmap(imageView.getWidth(),
+                    imageView.getHeight(),
+                    Bitmap.Config.ARGB_8888);
+            canvas = new Canvas(bitmap);
+
+            paint.setColor(Color.RED);
+            paint.setAntiAlias(true);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(8);
+        }
+
+        canvas.drawLine(floatStartX, floatStartY, floatEndX, floatEndY, paint);
+
+        imageView.setImageBitmap(bitmap);
+
+    }
+
+
+
+
+    // @Override
+    public boolean onTouchEvent(MotionEvent event){
+
+        if(event.getAction() == MotionEvent.ACTION_DOWN){
+            floatStartX = event.getX();
+            floatStartY = event.getY();
+        }
+
+        if(event.getAction() == MotionEvent.ACTION_MOVE){
+            floatStartX = event.getX();
+            floatStartY = event.getY();
+
+            drawPaintSketchImage();
+
+            floatEndX = event.getX();
+            floatEndY = event.getY();
+        }
+
+        if(event.getAction() == MotionEvent.ACTION_UP){
+            floatEndX = event.getX();
+            floatEndY = event.getY();
+
+            drawPaintSketchImage();
+        }
+        return true;
     }
 
     @Override
@@ -187,6 +264,9 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         receiveText.setMovementMethod(ScrollingMovementMethod.getInstance());
         tv_estimated_steps = view.findViewById(R.id.tv_estimated_steps);
 
+        imageView = view.findViewById(R.id.imageView);
+
+
 
         sendText = view.findViewById(R.id.send_text);
         hexWatcher = new TextUtil.HexWatcher(sendText);
@@ -198,22 +278,13 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         sendBtn.setOnClickListener(v -> send(sendText.getText().toString()));
 
 
-        et_receive_steps = view.findViewById(R.id.et_receive_steps);
-        et_receive_filename = view.findViewById(R.id.et_receive_filename);
-        btn_start = view.findViewById(R.id.btn_start);
-        btn_start.setOnClickListener(new View.OnClickListener() {
+
+        btn_start_stop = view.findViewById(R.id.btn_start_stop);
+        btn_start_stop.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 Toast.makeText(getContext(),"Start",Toast.LENGTH_SHORT).show();
                 to_receive = true;
                 receiveTime = true;
-
-            }
-        });
-        btn_stop = view.findViewById(R.id.btn_stop);
-        btn_stop.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                Toast.makeText(getContext(),"Stop",Toast.LENGTH_SHORT).show();
-                to_receive = false;
 
             }
         });
@@ -223,10 +294,6 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
                 Toast.makeText(getContext(),"Reset",Toast.LENGTH_SHORT).show();
                 File f = new File("/sdcard/csv_dir/data.csv");
                 to_receive=false;
-                clear_graph();
-                est_steps = "0";
-                update_est_steps();
-
 
 
                 if(f.delete())
@@ -238,96 +305,20 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         btn_save.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 Toast.makeText(getContext(),"Save",Toast.LENGTH_SHORT).show();
-                String steps_str = et_receive_steps.getText().toString();
-                String filename = et_receive_filename.getText().toString();
-                String ect_type = dropdown.getSelectedItem().toString();
 
-                if(steps_str.isEmpty() || filename.isEmpty() || ect_type.isEmpty()) {
-                    Toast.makeText(getContext(), "NOT ENTERED ALL VALUES", Toast.LENGTH_SHORT).show();
-                    return;
-                }
+                File fileSaveImage = new File(getContext().getExternalFilesDir(Environment.DIRECTORY_PICTURES),
+                        Calendar.getInstance().getTime().toString() + ".jpg");
 
-
-                File file = new File("/sdcard/csv_dir/");
-                file.mkdirs();
-
-                String csv = "/sdcard/csv_dir/" + filename + ".csv";
                 try {
-                    CSVWriter csvWriter = new CSVWriter(new FileWriter(csv,true));
-                    String[] first_row = new String[]{"NAME:", filename + ".csv"};
-                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm");
-                    String currentDateandTime = sdf.format(new Date());
-                    String[] second_row = new String[]{"EXPERIMENT TIME:", currentDateandTime};
-                    String[] third_row = new String[]{"ACTIVITY TYPE:", ect_type};
-                    String[] fourth_row = new String[]{"COUNT OF ACTUAL STEPS:", steps_str};
-                    String[] fifth_row = new String[]{"ESTIMATED NUMBER OF STEPS:", est_steps};//CHANGE STEPS HERE
+                    FileOutputStream fileOutputStream = new FileOutputStream(fileSaveImage);
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 100, fileOutputStream);
+                    fileOutputStream.flush();
+                    fileOutputStream.close();
 
-                    String[] empty_row = new String[]{};
-                    csvWriter.writeNext(first_row);
-                    csvWriter.writeNext(second_row);
-                    csvWriter.writeNext(third_row);
-                    csvWriter.writeNext(fourth_row);
-                    csvWriter.writeNext(fifth_row);
-                    csvWriter.writeNext(empty_row);
-                    copy_csv(csvWriter);
-                    csvWriter.close();
-
-
-                    CSVWriter csvWriter2 = new CSVWriter(new FileWriter(filenames_csv,true));
-                    csvWriter2.writeNext(new String[]{filename});
-                    csvWriter2.close();
-                    File f = new File("/sdcard/csv_dir/data.csv");
-
-                    clear_graph();
-                    est_steps = "0";
-                    update_est_steps();
-                    if(f.delete())
-                        Toast.makeText(getContext(), "SAVE COMPLETE", Toast.LENGTH_SHORT).show();
-
-
-                } catch (IOException e) {
+                } catch (Exception e) {
                     e.printStackTrace();
                 }
-            }
-        });
 
-        String[] paths = new String[]{"Walking", "Running"};
-        dropdown = (Spinner)view.findViewById(R.id.spinner);
-        ArrayAdapter<String>adapter = new ArrayAdapter<String>(getActivity(), android.R.layout.simple_spinner_item, paths);
-        dropdown.setAdapter(adapter);
-
-
-
-        mpLineChart = (LineChart) view.findViewById(R.id.line_chart);
-        lineDataSet =  new LineDataSet(emptyDataValues(), "N");
-        lineDataSet.setColor(Color.RED);
-        lineDataSet.setDrawCircles(false);
-
-        dataSets.add(lineDataSet);
-
-        data = new LineData(dataSets);
-        mpLineChart.setData(data);
-        mpLineChart.invalidate();
-
-        Button buttonClear = (Button) view.findViewById(R.id.button1);
-        Button buttonCsvShow = (Button) view.findViewById(R.id.button2);
-
-
-        buttonClear.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                Toast.makeText(getContext(),"Clear",Toast.LENGTH_SHORT).show();
-                LineData data = mpLineChart.getData();
-                ILineDataSet set = data.getDataSetByIndex(0);
-                data.getDataSetByIndex(0);
-                while(set.removeLast()){}
-
-            }
-        });
-
-        buttonCsvShow.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                OpenLoadCSV();
 
             }
         });
@@ -335,28 +326,6 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         return view;
     }
 
-    private void clear_graph() {
-        lineDataSet.clear();
-        data.notifyDataChanged();
-        mpLineChart.invalidate();
-    }
-
-    private void copy_csv(CSVWriter csvWriter) {
-        String[] header = new String[]{"Time [sec]", "N"};
-        csvWriter.writeNext(header);
-        String path = "/sdcard/csv_dir/data.csv";
-        try {
-            File file = new File(path);
-            CSVReader reader = new CSVReader(new FileReader(file));
-            String[]nextline;
-            while((nextline = reader.readNext())!= null){
-                if(nextline != null){
-                    csvWriter.writeNext(nextline);
-                }
-            }
-
-        }catch (Exception e){}
-    }
 
     @Override
     public void onCreateOptionsMenu(@NonNull Menu menu, MenuInflater inflater) {
@@ -457,27 +426,19 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
             receiveText.append(TextUtil.toHexString(message) + '\n');
         } else {
             String msg = new String(message);
-            if(newline.equals(TextUtil.newline_crlf) && msg.length() > 0) {
+            if (newline.equals(TextUtil.newline_crlf) && msg.length() > 0) {
                 // don't show CR as ^M if directly before LF
                 String msg_to_save = msg;
                 msg_to_save = msg.replace(TextUtil.newline_crlf, TextUtil.emptyString);
 
 
                 // check message length
-                if (msg_to_save.length() > 1){
-                // split message string by ',' char
-                String[] parts = msg_to_save.split(",");
-                // function to trim blank spaces
-                parts = clean_str(parts);
+                if (msg_to_save.length() > 1) {
+                    // split message string by ',' char
+                    String[] parts = msg_to_save.split(",");
+                    // function to trim blank spaces
+                    parts = clean_str(parts);
 
-                // saving data to csv
-                try {
-
-                    // create new csv unless file already exists
-                    File file = new File("/sdcard/csv_dir/");
-                    file.mkdirs();
-                    String csv = "/sdcard/csv_dir/data.csv";
-                    CSVWriter csvWriter = new CSVWriter(new FileWriter(csv,true));
 
                     if (receiveTime) {
                         receiveTime = false;
@@ -485,53 +446,29 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
                     }
                     parts[0] = Float.toString((Float.parseFloat(parts[0]) - starting_time) / 1000);
                     // parse string values, in this case [0] is tmp & [1] is N
-                    String row[]= new String[]{parts[0],parts[1]};
+                    Float row[] = new Float[]{Float.parseFloat(parts[1]), Float.parseFloat(parts[2]), Float.parseFloat(parts[3])};
+                    old_acc = new_acc;
+                    new_acc = row;
 
-                    csvWriter.writeNext(row);
-                    csvWriter.close();
 
-                    // add received values to line dataset for plotting the linechart
-                    data.addEntry(new Entry(Float.parseFloat(parts[0]),Float.parseFloat(parts[1])),0);
-                    lineDataSet.notifyDataSetChanged(); // let the data know a dataSet changed
+                    //CONTINUE HERE!!!!
 
-                    List<Entry> points = lineDataSet.getValues();
-                    Float[] t_arr = new Float[points.size()];
-                    Float[] N_arr = new Float[points.size()];
-                    for(int i = 0; i < points.size();i++){
-                        Entry curr = points.get(i);
-                        t_arr[i] = curr.getX();
-                        N_arr[i] = curr.getY();
+
+                    msg = msg.replace(TextUtil.newline_crlf, TextUtil.newline_lf);
+                    // send msg to function that saves it to csv
+                    // special handling if CR and LF come in separate fragments
+                    if (pendingNewline && msg.charAt(0) == '\n') {
+                        Editable edt = receiveText.getEditableText();
+                        if (edt != null && edt.length() > 1)
+                            edt.replace(edt.length() - 2, edt.length(), "");
                     }
-                    PyObject obj = pyobj.callAttr("identify_peek", t_arr, N_arr);
-                    est_steps = obj.toString();
-                    update_est_steps();
-
-                    mpLineChart.notifyDataSetChanged(); // let the chart know it's data changed
-                    mpLineChart.invalidate(); // refresh
-
-
-                } catch (IOException e) {
-
-                    e.printStackTrace();
-                }}
-
-                msg = msg.replace(TextUtil.newline_crlf, TextUtil.newline_lf);
-                // send msg to function that saves it to csv
-                // special handling if CR and LF come in separate fragments
-                if (pendingNewline && msg.charAt(0) == '\n') {
-                    Editable edt = receiveText.getEditableText();
-                    if (edt != null && edt.length() > 1)
-                        edt.replace(edt.length() - 2, edt.length(), "");
+                    pendingNewline = msg.charAt(msg.length() - 1) == '\r';
                 }
-                pendingNewline = msg.charAt(msg.length() - 1) == '\r';
+                receiveText.append(TextUtil.toCaretString(msg, newline.length() != 0));
             }
-            receiveText.append(TextUtil.toCaretString(msg, newline.length() != 0));
         }
     }
 
-    private void update_est_steps() {
-        tv_estimated_steps.setText("ESTIMATED NUMBER OF STEPS: " + est_steps);
-    }
 
     private void status(String str) {
         SpannableStringBuilder spn = new SpannableStringBuilder(str + '\n');
