@@ -89,11 +89,15 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
 
 
     private ImageView imageView;
-    private float floatStartX = -1, floatStartY = -1,
-                floatEndX = -1, floatEndY = -1;
+    private float floatStartX = 0, floatStartY = 0, floatStartZ = 0,
+                floatEndX = 0, floatEndY = 0, floatEndZ = 0;
     private Bitmap bitmap;
     private Canvas canvas;
     private Paint paint = new Paint();
+    private Float[] old_acc = new Float[] {(float)0, (float)0,(float)0,(float)0};
+    private Float[] new_acc = new Float[] {(float)0, (float)0,(float)0,(float)0};
+
+    private Float[] velocity = new Float[] {(float)0, (float)0, (float)0};
 
 
 
@@ -108,12 +112,11 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
     ArrayList<ILineDataSet> dataSets = new ArrayList<>();
     LineData data;
     private float starting_time = 0;
-    private boolean receiveTime;
+    private boolean receiveTime = false;
     private PyObject pyobj;
 
 
-    private Float[] old_acc = new Float[] {(float)0,(float)0,(float)0};
-    private Float[] new_acc = new Float[] {(float)0,(float)0,(float)0};
+
 
 
 
@@ -150,18 +153,19 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
                     Bitmap.Config.ARGB_8888);
             canvas = new Canvas(bitmap);
 
-            paint.setColor(Color.RED);
+            paint.setColor(Color.WHITE);
             paint.setAntiAlias(true);
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(8);
         }
 
-        canvas.drawLine(floatStartX, floatStartY, floatEndX, floatEndY, paint);
+        canvas.drawLine(floatStartX, floatStartZ, floatEndX, floatEndZ, paint);
+        Toast.makeText(getContext(),"("+Float.toString(floatStartX)+ ", " + Float.toString(floatStartZ) + ") => " +
+                        "("+Float.toString(floatEndX) + ", " + Float.toString(floatEndZ) + ")"
+                ,Toast.LENGTH_SHORT).show();
 
         imageView.setImageBitmap(bitmap);
-
     }
-
 
 
 
@@ -170,22 +174,22 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
 
         if(event.getAction() == MotionEvent.ACTION_DOWN){
             floatStartX = event.getX();
-            floatStartY = event.getY();
+            floatStartZ = event.getY();
         }
 
         if(event.getAction() == MotionEvent.ACTION_MOVE){
             floatStartX = event.getX();
-            floatStartY = event.getY();
+            floatStartZ = event.getY();
 
             drawPaintSketchImage();
 
             floatEndX = event.getX();
-            floatEndY = event.getY();
+            floatEndZ = event.getY();
         }
 
         if(event.getAction() == MotionEvent.ACTION_UP){
             floatEndX = event.getX();
-            floatEndY = event.getY();
+            floatEndZ = event.getY();
 
             drawPaintSketchImage();
         }
@@ -265,7 +269,6 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         tv_estimated_steps = view.findViewById(R.id.tv_estimated_steps);
 
         imageView = view.findViewById(R.id.imageView);
-
 
 
         sendText = view.findViewById(R.id.send_text);
@@ -440,19 +443,35 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
                     parts = clean_str(parts);
 
 
-                    if (receiveTime) {
-                        receiveTime = false;
-                        starting_time = Float.parseFloat(parts[0]);
+                    if (!receiveTime) {
+                        return;
                     }
                     parts[0] = Float.toString((Float.parseFloat(parts[0]) - starting_time) / 1000);
-                    // parse string values, in this case [0] is tmp & [1] is N
-                    Float row[] = new Float[]{Float.parseFloat(parts[1]), Float.parseFloat(parts[2]), Float.parseFloat(parts[3])};
+
+                    // parse string values, in this case [0] is t & [1] is x & [2] is y & [3] is z
+                    Float row[] = new Float[]{(Float.parseFloat(parts[0]) - starting_time) / 1000, Float.parseFloat(parts[1]), Float.parseFloat(parts[2]), Float.parseFloat(parts[3])};
                     old_acc = new_acc;
                     new_acc = row;
 
+                    floatStartX = floatEndX;
+                    floatStartY = floatEndY;
+                    floatStartZ = floatEndZ;
+
+                    float time_frame = new_acc[0] - old_acc[0];
+
+                    velocity[0] += new_acc[0] * time_frame;
+                    velocity[1] += new_acc[1] * time_frame;
+                    velocity[2] += new_acc[2] * time_frame;
+
+
+                    floatEndX = (float) (floatStartX + velocity[0]*time_frame + 0.5 * new_acc[0] * time_frame * time_frame);
+                    floatEndY = (float) (floatStartY + velocity[1]*time_frame + 0.5 * new_acc[1] * time_frame * time_frame);
+                    floatEndZ = (float) (floatStartZ + velocity[2]*time_frame + 0.5 * new_acc[2] * time_frame * time_frame);
+
+
+                    drawPaintSketchImage();
 
                     //CONTINUE HERE!!!!
-
 
                     msg = msg.replace(TextUtil.newline_crlf, TextUtil.newline_lf);
                     // send msg to function that saves it to csv
