@@ -285,7 +285,7 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         });
 
         String[] paths = new String[]{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m"
-        , "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "SPACE", "DOT"};
+        , "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "SPACE", "DOT", "DELETE"};
         dropdown = (Spinner)view.findViewById(R.id.spinner);
         ArrayAdapter<String>adapter = new ArrayAdapter<String>(getActivity(), android.R.layout.simple_spinner_item, paths);
         dropdown.setAdapter(adapter);
