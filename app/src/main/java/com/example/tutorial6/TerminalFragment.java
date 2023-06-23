@@ -85,8 +85,10 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
     private String newline = TextUtil.newline_crlf;
     private boolean to_receive = false;
 
+    int NUM_OF_VALUES = 3;
     LineChart mpLineChart;
-    LineDataSet lineDataSet;
+    LineDataSet[] lineDataSets = new LineDataSet[NUM_OF_VALUES];
+    String[] axis = new String[]{"Time [sec]","acc_x", "acc_y", "acc_z", "gr_x", "gr_y", "gr_z"};
 
     ArrayList<ILineDataSet> dataSets = new ArrayList<>();
     LineData data;
@@ -224,10 +226,6 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
                 File f = new File("/sdcard/csv_dir/data.csv");
                 to_receive=false;
                 clear_graph();
-                est_steps = "0";
-                update_est_steps();
-
-
 
                 if(f.delete())
                     Toast.makeText(getContext(), "RESET COMPLETE", Toast.LENGTH_SHORT).show();
@@ -238,11 +236,10 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         btn_save.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 Toast.makeText(getContext(),"Save",Toast.LENGTH_SHORT).show();
-                String steps_str = et_receive_steps.getText().toString();
-                String filename = et_receive_filename.getText().toString();
-                String ect_type = dropdown.getSelectedItem().toString();
+                String letter = dropdown.getSelectedItem().toString();
+                String filename = letter + "-";
 
-                if(steps_str.isEmpty() || filename.isEmpty() || ect_type.isEmpty()) {
+                if(letter.isEmpty()) {
                     Toast.makeText(getContext(), "NOT ENTERED ALL VALUES", Toast.LENGTH_SHORT).show();
                     return;
                 }
@@ -250,37 +247,33 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
 
                 File file = new File("/sdcard/csv_dir/");
                 file.mkdirs();
-
-                String csv = "/sdcard/csv_dir/" + filename + ".csv";
+                int max_letter_file = 0, current_file_num = 0;
+                ArrayList<String[]> filenames = new ArrayList<>();
+                filenames = CsvRead(filenames_csv);
+                for(int i = 0; i < filenames.size(); i++) {
+                    String[] splitted = filenames.get(i)[0].split("-");
+                    if (splitted[0].equals(letter)) {
+                        current_file_num = Integer.parseInt(splitted[1]);
+                        if (current_file_num > max_letter_file)
+                            max_letter_file = current_file_num;
+                    }
+                }
+                filename = letter + "-" + Integer.toString(max_letter_file + 1);
+                String csv = "/sdcard/csv_dir/" + letter + "-" + Integer.toString(max_letter_file + 1)  + ".csv";
                 try {
                     CSVWriter csvWriter = new CSVWriter(new FileWriter(csv,true));
-                    String[] first_row = new String[]{"NAME:", filename + ".csv"};
-                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm");
-                    String currentDateandTime = sdf.format(new Date());
-                    String[] second_row = new String[]{"EXPERIMENT TIME:", currentDateandTime};
-                    String[] third_row = new String[]{"ACTIVITY TYPE:", ect_type};
-                    String[] fourth_row = new String[]{"COUNT OF ACTUAL STEPS:", steps_str};
-                    String[] fifth_row = new String[]{"ESTIMATED NUMBER OF STEPS:", est_steps};//CHANGE STEPS HERE
-
+                    String[] first_row = new String[]{"LETTER:", letter};
                     String[] empty_row = new String[]{};
                     csvWriter.writeNext(first_row);
-                    csvWriter.writeNext(second_row);
-                    csvWriter.writeNext(third_row);
-                    csvWriter.writeNext(fourth_row);
-                    csvWriter.writeNext(fifth_row);
                     csvWriter.writeNext(empty_row);
                     copy_csv(csvWriter);
                     csvWriter.close();
-
-
                     CSVWriter csvWriter2 = new CSVWriter(new FileWriter(filenames_csv,true));
                     csvWriter2.writeNext(new String[]{filename});
                     csvWriter2.close();
                     File f = new File("/sdcard/csv_dir/data.csv");
 
                     clear_graph();
-                    est_steps = "0";
-                    update_est_steps();
                     if(f.delete())
                         Toast.makeText(getContext(), "SAVE COMPLETE", Toast.LENGTH_SHORT).show();
 
@@ -291,20 +284,20 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
             }
         });
 
-        String[] paths = new String[]{"Walking", "Running"};
+        String[] paths = new String[]{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m"
+        , "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "SPACE", "DOT"};
         dropdown = (Spinner)view.findViewById(R.id.spinner);
         ArrayAdapter<String>adapter = new ArrayAdapter<String>(getActivity(), android.R.layout.simple_spinner_item, paths);
         dropdown.setAdapter(adapter);
 
-
-
+        int[] colors = new int[]{Color.RED, Color.GREEN, Color.BLUE, Color.CYAN,Color.GRAY, Color.MAGENTA};
         mpLineChart = (LineChart) view.findViewById(R.id.line_chart);
-        lineDataSet =  new LineDataSet(emptyDataValues(), "N");
-        lineDataSet.setColor(Color.RED);
-        lineDataSet.setDrawCircles(false);
-
-        dataSets.add(lineDataSet);
-
+        for(int i=0;i<NUM_OF_VALUES;i++){
+            lineDataSets[i] = new LineDataSet(emptyDataValues(),axis[i+1]);
+            lineDataSets[i].setColor(colors[i]);
+            lineDataSets[i].setDrawCircles(false);
+            dataSets.add(lineDataSets[i]);
+        }
         data = new LineData(dataSets);
         mpLineChart.setData(data);
         mpLineChart.invalidate();
@@ -336,13 +329,15 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
     }
 
     private void clear_graph() {
-        lineDataSet.clear();
+        for(int i=0;i<NUM_OF_VALUES;i++){
+            lineDataSets[i].clear();
+        }
         data.notifyDataChanged();
         mpLineChart.invalidate();
     }
 
     private void copy_csv(CSVWriter csvWriter) {
-        String[] header = new String[]{"Time [sec]", "N"};
+        String[] header = new String[] {axis[0], axis[1], axis[2], axis[3]};
         csvWriter.writeNext(header);
         String path = "/sdcard/csv_dir/data.csv";
         try {
@@ -484,27 +479,26 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
                         starting_time = Float.parseFloat(parts[0]);
                     }
                     parts[0] = Float.toString((Float.parseFloat(parts[0]) - starting_time) / 1000);
-                    // parse string values, in this case [0] is tmp & [1] is N
-                    String row[]= new String[]{parts[0],parts[1]};
-
-                    csvWriter.writeNext(row);
+                    String[] row = new String[]{parts[0],parts[1],parts[2],parts[3]};
+                    csvWriter.writeNext(parts);
                     csvWriter.close();
-
-                    // add received values to line dataset for plotting the linechart
-                    data.addEntry(new Entry(Float.parseFloat(parts[0]),Float.parseFloat(parts[1])),0);
-                    lineDataSet.notifyDataSetChanged(); // let the data know a dataSet changed
-
-                    List<Entry> points = lineDataSet.getValues();
-                    Float[] t_arr = new Float[points.size()];
-                    Float[] N_arr = new Float[points.size()];
-                    for(int i = 0; i < points.size();i++){
-                        Entry curr = points.get(i);
-                        t_arr[i] = curr.getX();
-                        N_arr[i] = curr.getY();
+                    for(int i=0;i< NUM_OF_VALUES;i++){
+                        data.addEntry(new Entry(Float.parseFloat(parts[0]),Float.parseFloat(parts[i + 1])),i);
+                        lineDataSets[i].notifyDataSetChanged(); // let the data know a dataSet changed
                     }
-                    PyObject obj = pyobj.callAttr("identify_peek", t_arr, N_arr);
-                    est_steps = obj.toString();
-                    update_est_steps();
+                    // add received values to line dataset for plotting the linechart
+
+//                    List<Entry> points = lineDataSet.getValues();
+//                    Float[] t_arr = new Float[points.size()];
+//                    Float[] N_arr = new Float[points.size()];
+//                    for(int i = 0; i < points.size();i++){
+//                        Entry curr = points.get(i);
+//                        t_arr[i] = curr.getX();
+//                        N_arr[i] = curr.getY();
+//                    }
+//                    PyObject obj = pyobj.callAttr("identify_peek", t_arr, N_arr);
+//                    est_steps = obj.toString();
+//                    update_est_steps();
 
                     mpLineChart.notifyDataSetChanged(); // let the chart know it's data changed
                     mpLineChart.invalidate(); // refresh
@@ -529,9 +523,6 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         }
     }
 
-    private void update_est_steps() {
-        tv_estimated_steps.setText("ESTIMATED NUMBER OF STEPS: " + est_steps);
-    }
 
     private void status(String str) {
         SpannableStringBuilder spn = new SpannableStringBuilder(str + '\n');
@@ -578,6 +569,23 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
     private void OpenLoadCSV(){
         Intent intent = new Intent(getContext(),LoadCSV.class);
         startActivity(intent);
+    }
+
+    private ArrayList<String[]> CsvRead(String path){
+        ArrayList<String[]> CsvData = new ArrayList<>();
+        try {
+            File file = new File(path);
+            CSVReader reader = new CSVReader(new FileReader(file));
+            String[]nextline;
+            while((nextline = reader.readNext())!= null){
+                if(nextline != null){
+                    CsvData.add(nextline);
+
+                }
+            }
+
+        }catch (Exception e){}
+        return CsvData;
     }
 
 }

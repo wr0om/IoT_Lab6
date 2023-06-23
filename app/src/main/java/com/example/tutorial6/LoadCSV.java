@@ -103,8 +103,6 @@ public class LoadCSV extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 String filename_delete = dropdown.getSelectedItem().toString();
-                Toast.makeText(LoadCSV.this, "yay", Toast.LENGTH_SHORT).show();
-
                 File f1 = new File("/sdcard/csv_dir/" + filename_delete + ".csv");
                 if(f1.delete()) {
                     Toast.makeText(LoadCSV.this, "Deleted " + filename_delete, Toast.LENGTH_SHORT).show();
