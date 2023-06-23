@@ -63,7 +63,6 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
     private String deviceAddress;
     private SerialService service;
 
-    private TextView tv_estimated_steps;
     private TextView receiveText;
     private TextView sendText;
     private TextUtil.HexWatcher hexWatcher;
@@ -73,6 +72,7 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
     private Button btn_reset;
     private Button btn_save;
 
+    private EditText et_displayText;
 
     private Spinner dropdown;
 
@@ -93,7 +93,6 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
     private float starting_time = 0;
     private boolean receiveTime;
     private PyObject pyobj;
-    private String est_steps = "0";
 
     private static final String filenames_csv = "/sdcard/csv_dir/filenames.csv";
     /*
@@ -185,8 +184,7 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         receiveText = view.findViewById(R.id.receive_text);                          // TextView performance decreases with number of spans
         receiveText.setTextColor(getResources().getColor(R.color.colorRecieveText)); // set as default color to reduce number of spans
         receiveText.setMovementMethod(ScrollingMovementMethod.getInstance());
-        tv_estimated_steps = view.findViewById(R.id.tv_estimated_steps);
-
+        et_displayText = view.findViewById(R.id.et_displayText);
 
         sendText = view.findViewById(R.id.send_text);
         hexWatcher = new TextUtil.HexWatcher(sendText);
@@ -483,17 +481,31 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
                     }
                     // add received values to line dataset for plotting the linechart
 
-//                    List<Entry> points = lineDataSet.getValues();
-//                    Float[] t_arr = new Float[points.size()];
-//                    Float[] N_arr = new Float[points.size()];
-//                    for(int i = 0; i < points.size();i++){
-//                        Entry curr = points.get(i);
-//                        t_arr[i] = curr.getX();
-//                        N_arr[i] = curr.getY();
-//                    }
-//                    PyObject obj = pyobj.callAttr("identify_peek", t_arr, N_arr);
-//                    est_steps = obj.toString();
-//                    update_est_steps();
+                    List<Entry> points_x = lineDataSets[0].getValues();
+                    List<Entry> points_y = lineDataSets[1].getValues();
+                    List<Entry> points_z = lineDataSets[2].getValues();
+                    int len = points_x.size();
+                    float[] t_arr = new float[len];
+                    float[] x_arr = new float[len];
+                    float[] y_arr = new float[len];
+                    float[] z_arr = new float[len];
+
+                    for(int i = 0; i < len;i++){
+                        Entry curr_x = points_x.get(i);
+                        Entry curr_y = points_y.get(i);
+                        Entry curr_z = points_z.get(i);
+                        t_arr[i] = curr_x.getX();
+                        x_arr[i] = curr_x.getY();
+                        y_arr[i] = curr_y.getY();
+                        z_arr[i] = curr_z.getY();
+                    }
+                    PyObject obj = pyobj.callAttr("identify_peek", t_arr, x_arr, y_arr, z_arr);
+                    String returned = obj.toString();
+
+                    if(!returned.equals("")) {
+                        et_displayText.setText(et_displayText.getText() + returned);
+                        Toast.makeText(getActivity(), returned, Toast.LENGTH_SHORT).show();
+                    }
 
                     mpLineChart.notifyDataSetChanged(); // let the chart know it's data changed
                     mpLineChart.invalidate(); // refresh
