@@ -68,8 +68,6 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
     private TextView sendText;
     private TextUtil.HexWatcher hexWatcher;
 
-    private EditText et_receive_steps;
-    private EditText et_receive_filename;
     private Button btn_start;
     private Button btn_stop;
     private Button btn_reset;
@@ -199,9 +197,6 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         View sendBtn = view.findViewById(R.id.send_btn);
         sendBtn.setOnClickListener(v -> send(sendText.getText().toString()));
 
-
-        et_receive_steps = view.findViewById(R.id.et_receive_steps);
-        et_receive_filename = view.findViewById(R.id.et_receive_filename);
         btn_start = view.findViewById(R.id.btn_start);
         btn_start.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
