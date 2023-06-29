@@ -63,7 +63,7 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
     private String deviceAddress;
     private SerialService service;
 
-    private TextView tv_estimated_steps;
+    private TextView tv_show_letter;
     private TextView receiveText;
     private TextView sendText;
     private TextUtil.HexWatcher hexWatcher;
@@ -185,7 +185,7 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         receiveText = view.findViewById(R.id.receive_text);                          // TextView performance decreases with number of spans
         receiveText.setTextColor(getResources().getColor(R.color.colorRecieveText)); // set as default color to reduce number of spans
         receiveText.setMovementMethod(ScrollingMovementMethod.getInstance());
-        tv_estimated_steps = view.findViewById(R.id.tv_estimated_steps);
+        tv_show_letter = view.findViewById(R.id.tv_show_letter);
 
 
         sendText = view.findViewById(R.id.send_text);
@@ -233,7 +233,6 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
                 Toast.makeText(getContext(),"Save",Toast.LENGTH_SHORT).show();
                 String letter = dropdown.getSelectedItem().toString();
                 String filename = letter + "-";
-
                 if(letter.isEmpty()) {
                     Toast.makeText(getContext(), "NOT ENTERED ALL VALUES", Toast.LENGTH_SHORT).show();
                     return;
@@ -254,13 +253,11 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
                     }
                 }
                 filename = letter + "-" + Integer.toString(max_letter_file + 1);
+                tv_show_letter.setText(filename);
+
                 String csv = "/sdcard/csv_dir/" + letter + "-" + Integer.toString(max_letter_file + 1)  + ".csv";
                 try {
                     CSVWriter csvWriter = new CSVWriter(new FileWriter(csv,true));
-                    String[] first_row = new String[]{"LETTER:", letter};
-                    String[] empty_row = new String[]{};
-                    csvWriter.writeNext(first_row);
-                    csvWriter.writeNext(empty_row);
                     copy_csv(csvWriter);
                     csvWriter.close();
                     CSVWriter csvWriter2 = new CSVWriter(new FileWriter(filenames_csv,true));
@@ -269,6 +266,7 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
                     File f = new File("/sdcard/csv_dir/data.csv");
 
                     clear_graph();
+
                     if(f.delete())
                         Toast.makeText(getContext(), "SAVE COMPLETE", Toast.LENGTH_SHORT).show();
 
@@ -280,7 +278,7 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         });
 
         String[] paths = new String[]{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m"
-        , "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "SPACE", "DOT", "DELETE"};
+        , "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "SPACE", "DOT"};
         dropdown = (Spinner)view.findViewById(R.id.spinner);
         ArrayAdapter<String>adapter = new ArrayAdapter<String>(getActivity(), android.R.layout.simple_spinner_item, paths);
         dropdown.setAdapter(adapter);
