@@ -24,6 +24,10 @@ android {
             buildPython "C:/Users/Rom/AppData/Local/Programs/Python/Python311/python.exe"
             pip{
                 install "numpy"
+                install "pandas"
+                install "scikit-learn"
+                install "tensorflow"
+
             }
         }
 

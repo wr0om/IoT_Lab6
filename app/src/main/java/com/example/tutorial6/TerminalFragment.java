@@ -11,6 +11,7 @@ import android.content.ServiceConnection;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.speech.tts.TextToSpeech;
 import android.text.Editable;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
@@ -20,6 +21,7 @@ import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
@@ -52,6 +54,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 public class TerminalFragment extends Fragment implements ServiceConnection, SerialListener {
 
@@ -63,18 +66,16 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
     private String deviceAddress;
     private SerialService service;
 
-    private TextView tv_show_letter;
     private TextView receiveText;
     private TextView sendText;
     private TextUtil.HexWatcher hexWatcher;
 
-    private Button btn_start;
-    private Button btn_stop;
-    private Button btn_reset;
-    private Button btn_save;
+
+    private EditText et_sentence;
+    private Button btn_listen;
+    private TextToSpeech textToSpeech;
 
 
-    private Spinner dropdown;
 
     private Connected connected = Connected.False;
     private boolean initialStart = true;
@@ -84,7 +85,6 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
     private boolean to_receive = false;
 
     int NUM_OF_VALUES = 3;
-    LineChart mpLineChart;
     LineDataSet[] lineDataSets = new LineDataSet[NUM_OF_VALUES];
     String[] axis = new String[]{"Time [sec]","acc_x", "acc_y", "acc_z", "gr_x", "gr_y", "gr_z"};
 
@@ -185,7 +185,6 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         receiveText = view.findViewById(R.id.receive_text);                          // TextView performance decreases with number of spans
         receiveText.setTextColor(getResources().getColor(R.color.colorRecieveText)); // set as default color to reduce number of spans
         receiveText.setMovementMethod(ScrollingMovementMethod.getInstance());
-        tv_show_letter = view.findViewById(R.id.tv_show_letter);
 
 
         sendText = view.findViewById(R.id.send_text);
@@ -197,94 +196,165 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         View sendBtn = view.findViewById(R.id.send_btn);
         sendBtn.setOnClickListener(v -> send(sendText.getText().toString()));
 
-        btn_start = view.findViewById(R.id.btn_start);
-        btn_start.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                Toast.makeText(getContext(),"Start",Toast.LENGTH_SHORT).show();
+
+        textToSpeech = new TextToSpeech(getContext(), new TextToSpeech.OnInitListener() {
+            @Override
+            public void onInit(int i) {
+                if(i == TextToSpeech.SUCCESS){
+                    int language = textToSpeech.setLanguage(Locale.ENGLISH);
+                }
+            }
+        });
+
+
+        et_sentence = view.findViewById(R.id.et_sentence);
+        btn_listen = view.findViewById(R.id.btn_listen);
+        btn_listen.setOnTouchListener((v, event) -> {
+            if (event.getAction() ==  MotionEvent.ACTION_DOWN){
+                Toast.makeText(getContext(),"DOWN",Toast.LENGTH_SHORT).show();
                 to_receive = true;
                 receiveTime = true;
-
+                return true;
             }
-        });
-        btn_stop = view.findViewById(R.id.btn_stop);
-        btn_stop.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                Toast.makeText(getContext(),"Stop",Toast.LENGTH_SHORT).show();
+            else if (event.getAction() ==  MotionEvent.ACTION_UP){
+                Toast.makeText(getContext(),"UP",Toast.LENGTH_SHORT).show();
                 to_receive = false;
 
-            }
-        });
-        btn_reset = view.findViewById(R.id.btn_reset);
-        btn_reset.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                Toast.makeText(getContext(),"Reset",Toast.LENGTH_SHORT).show();
-                File f = new File("/sdcard/csv_dir/data.csv");
-                to_receive=false;
+
+
+                List<Entry> points_x = lineDataSets[0].getValues();
+                List<Entry> points_y = lineDataSets[1].getValues();
+                List<Entry> points_z = lineDataSets[2].getValues();
+                int min_size = Math.min(points_x.size(),Math.min(points_y.size(),points_z.size()));
+                Float[] t_arr = new Float[min_size];
+                Float[] x_arr = new Float[min_size];
+                Float[] y_arr = new Float[min_size];
+                Float[] z_arr = new Float[min_size];
+
+                for(int i = 0; i < min_size;i++){
+                    Entry curr_x = points_x.get(i);
+                    Entry curr_y = points_y.get(i);
+                    Entry curr_z = points_z.get(i);
+                    t_arr[i] = curr_x.getX();
+                    x_arr[i] = curr_x.getY();
+                    y_arr[i] = curr_y.getY();
+                    z_arr[i] = curr_z.getY();
+                }
+
+                PyObject obj = pyobj.callAttr("identify_letter", t_arr, x_arr, y_arr, z_arr);
+                String output = obj.toString();
+
+
+                if (output.equals("DOT")) {
+                    String sentence = et_sentence.getText().toString();
+                    String[] words = sentence.split(" ");
+                    et_sentence.setText(et_sentence.getText().toString() + ".");
+                    int speechStatus2 = textToSpeech.speak(sentence, TextToSpeech.QUEUE_FLUSH, null);
+                }else if(output.equals("SPACE")) {
+                    et_sentence.setText(et_sentence.getText().toString() + " ");
+                }
+                else {
+                    et_sentence.setText(et_sentence.getText().toString() + output);
+                }
+
                 clear_graph();
-
-                if(f.delete())
-                    Toast.makeText(getContext(), "RESET COMPLETE", Toast.LENGTH_SHORT).show();
-
+                return true;
             }
-        });
-        btn_save = view.findViewById(R.id.btn_save);
-        btn_save.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                Toast.makeText(getContext(),"Save",Toast.LENGTH_SHORT).show();
-                String letter = dropdown.getSelectedItem().toString();
-                String filename = letter + "-";
-                if(letter.isEmpty()) {
-                    Toast.makeText(getContext(), "NOT ENTERED ALL VALUES", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-
-
-                File file = new File("/sdcard/csv_dir/");
-                file.mkdirs();
-                int max_letter_file = 0, current_file_num = 0;
-                ArrayList<String[]> filenames = new ArrayList<>();
-                filenames = CsvRead(filenames_csv);
-                for(int i = 0; i < filenames.size(); i++) {
-                    String[] splitted = filenames.get(i)[0].split("-");
-                    if (splitted[0].equals(letter)) {
-                        current_file_num = Integer.parseInt(splitted[1]);
-                        if (current_file_num > max_letter_file)
-                            max_letter_file = current_file_num;
-                    }
-                }
-                filename = letter + "-" + Integer.toString(max_letter_file + 1);
-                tv_show_letter.setText(filename);
-
-                String csv = "/sdcard/csv_dir/" + letter + "-" + Integer.toString(max_letter_file + 1)  + ".csv";
-                try {
-                    CSVWriter csvWriter = new CSVWriter(new FileWriter(csv,true));
-                    copy_csv(csvWriter);
-                    csvWriter.close();
-                    CSVWriter csvWriter2 = new CSVWriter(new FileWriter(filenames_csv,true));
-                    csvWriter2.writeNext(new String[]{filename});
-                    csvWriter2.close();
-                    File f = new File("/sdcard/csv_dir/data.csv");
-
-                    clear_graph();
-
-                    if(f.delete())
-                        Toast.makeText(getContext(), "SAVE COMPLETE", Toast.LENGTH_SHORT).show();
-
-
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
+            return false;
         });
 
-        String[] paths = new String[]{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m"
-        , "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "SPACE", "DOT"};
-        dropdown = (Spinner)view.findViewById(R.id.spinner);
-        ArrayAdapter<String>adapter = new ArrayAdapter<String>(getActivity(), android.R.layout.simple_spinner_item, paths);
-        dropdown.setAdapter(adapter);
+
+//        et_receive_steps = view.findViewById(R.id.et_receive_steps);
+//        et_receive_filename = view.findViewById(R.id.et_receive_filename);
+//        btn_start = view.findViewById(R.id.btn_start);
+//        btn_start.setOnClickListener(new View.OnClickListener() {
+//            public void onClick(View v) {
+//                Toast.makeText(getContext(),"Start",Toast.LENGTH_SHORT).show();
+//                to_receive = true;
+//                receiveTime = true;
+//
+//            }
+//        });
+//        btn_stop = view.findViewById(R.id.btn_stop);
+//        btn_stop.setOnClickListener(new View.OnClickListener() {
+//            public void onClick(View v) {
+//                Toast.makeText(getContext(),"Stop",Toast.LENGTH_SHORT).show();
+//                to_receive = false;
+//
+//            }
+//        });
+//        btn_reset = view.findViewById(R.id.btn_reset);
+//        btn_reset.setOnClickListener(new View.OnClickListener() {
+//            public void onClick(View v) {
+//                Toast.makeText(getContext(),"Reset",Toast.LENGTH_SHORT).show();
+//                File f = new File("/sdcard/csv_dir/data.csv");
+//                to_receive=false;
+//                clear_graph();
+//
+//                if(f.delete())
+//                    Toast.makeText(getContext(), "RESET COMPLETE", Toast.LENGTH_SHORT).show();
+//
+//            }
+//        });
+//        btn_save = view.findViewById(R.id.btn_save);
+//        btn_save.setOnClickListener(new View.OnClickListener() {
+//            public void onClick(View v) {
+//                Toast.makeText(getContext(),"Save",Toast.LENGTH_SHORT).show();
+//                String letter = dropdown.getSelectedItem().toString();
+//                String filename = letter + "-";
+//
+//                if(letter.isEmpty()) {
+//                    Toast.makeText(getContext(), "NOT ENTERED ALL VALUES", Toast.LENGTH_SHORT).show();
+//                    return;
+//                }
+//
+//
+//                File file = new File("/sdcard/csv_dir/");
+//                file.mkdirs();
+//                int max_letter_file = 0, current_file_num = 0;
+//                ArrayList<String[]> filenames = new ArrayList<>();
+//                filenames = CsvRead(filenames_csv);
+//                for(int i = 0; i < filenames.size(); i++) {
+//                    String[] splitted = filenames.get(i)[0].split("-");
+//                    if (splitted[0].equals(letter)) {
+//                        current_file_num = Integer.parseInt(splitted[1]);
+//                        if (current_file_num > max_letter_file)
+//                            max_letter_file = current_file_num;
+//                    }
+//                }
+//                filename = letter + "-" + Integer.toString(max_letter_file + 1);
+//                String csv = "/sdcard/csv_dir/" + letter + "-" + Integer.toString(max_letter_file + 1)  + ".csv";
+//                try {
+//                    CSVWriter csvWriter = new CSVWriter(new FileWriter(csv,true));
+//                    String[] first_row = new String[]{"LETTER:", letter};
+//                    String[] empty_row = new String[]{};
+//                    csvWriter.writeNext(first_row);
+//                    csvWriter.writeNext(empty_row);
+//                    copy_csv(csvWriter);
+//                    csvWriter.close();
+//                    CSVWriter csvWriter2 = new CSVWriter(new FileWriter(filenames_csv,true));
+//                    csvWriter2.writeNext(new String[]{filename});
+//                    csvWriter2.close();
+//                    File f = new File("/sdcard/csv_dir/data.csv");
+//
+//                    clear_graph();
+//                    if(f.delete())
+//                        Toast.makeText(getContext(), "SAVE COMPLETE", Toast.LENGTH_SHORT).show();
+//
+//
+//                } catch (IOException e) {
+//                    e.printStackTrace();
+//                }
+//            }
+//        });
+//
+//        String[] paths = new String[]{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m"
+//        , "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "SPACE", "DOT"};
+//        dropdown = (Spinner)view.findViewById(R.id.spinner);
+//        ArrayAdapter<String>adapter = new ArrayAdapter<String>(getActivity(), android.R.layout.simple_spinner_item, paths);
+//        dropdown.setAdapter(adapter);
 
         int[] colors = new int[]{Color.RED, Color.GREEN, Color.BLUE, Color.CYAN,Color.GRAY, Color.MAGENTA};
-        mpLineChart = (LineChart) view.findViewById(R.id.line_chart);
         for(int i=0;i<NUM_OF_VALUES;i++){
             lineDataSets[i] = new LineDataSet(emptyDataValues(),axis[i+1]);
             lineDataSets[i].setColor(colors[i]);
@@ -292,31 +362,8 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
             dataSets.add(lineDataSets[i]);
         }
         data = new LineData(dataSets);
-        mpLineChart.setData(data);
-        mpLineChart.invalidate();
-
-        Button buttonClear = (Button) view.findViewById(R.id.button1);
-        Button buttonCsvShow = (Button) view.findViewById(R.id.button2);
 
 
-        buttonClear.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                Toast.makeText(getContext(),"Clear",Toast.LENGTH_SHORT).show();
-                LineData data = mpLineChart.getData();
-                ILineDataSet set = data.getDataSetByIndex(0);
-                data.getDataSetByIndex(0);
-                while(set.removeLast()){}
-
-            }
-        });
-
-        buttonCsvShow.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                OpenLoadCSV();
-
-            }
-        });
 
         return view;
     }
@@ -326,7 +373,6 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
             lineDataSets[i].clear();
         }
         data.notifyDataChanged();
-        mpLineChart.invalidate();
     }
 
     private void copy_csv(CSVWriter csvWriter) {
@@ -386,8 +432,8 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
      * Serial + UI
      */
     private String[] clean_str(String[] stringsArr){
-         for (int i = 0; i < stringsArr.length; i++)  {
-             stringsArr[i] = stringsArr[i].replaceAll(" ","");
+        for (int i = 0; i < stringsArr.length; i++)  {
+            stringsArr[i] = stringsArr[i].replaceAll(" ","");
         }
 
 
@@ -453,33 +499,35 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
 
                 // check message length
                 if (msg_to_save.length() > 1){
-                // split message string by ',' char
-                String[] parts = msg_to_save.split(",");
-                // function to trim blank spaces
-                parts = clean_str(parts);
+                    // split message string by ',' char
+                    String[] parts = msg_to_save.split(",");
+                    // function to trim blank spaces
+                    parts = clean_str(parts);
 
-                // saving data to csv
-                try {
+                    // saving data to csv
+                    try {
 
-                    // create new csv unless file already exists
-                    File file = new File("/sdcard/csv_dir/");
-                    file.mkdirs();
-                    String csv = "/sdcard/csv_dir/data.csv";
-                    CSVWriter csvWriter = new CSVWriter(new FileWriter(csv,true));
+                        // create new csv unless file already exists
+                        File file = new File("/sdcard/csv_dir/");
+                        file.mkdirs();
+                        String csv = "/sdcard/csv_dir/data.csv";
+                        CSVWriter csvWriter = new CSVWriter(new FileWriter(csv,true));
 
-                    if (receiveTime) {
-                        receiveTime = false;
-                        starting_time = Float.parseFloat(parts[0]);
-                    }
-                    parts[0] = Float.toString((Float.parseFloat(parts[0]) - starting_time) / 1000);
-                    String[] row = new String[]{parts[0],parts[1],parts[2],parts[3]};
-                    csvWriter.writeNext(parts);
-                    csvWriter.close();
-                    for(int i=0;i< NUM_OF_VALUES;i++){
-                        data.addEntry(new Entry(Float.parseFloat(parts[0]),Float.parseFloat(parts[i + 1])),i);
-                        lineDataSets[i].notifyDataSetChanged(); // let the data know a dataSet changed
-                    }
-                    // add received values to line dataset for plotting the linechart
+                        if (receiveTime) {
+                            receiveTime = false;
+                            starting_time = Float.parseFloat(parts[0]);
+                        }
+                        parts[0] = Float.toString((Float.parseFloat(parts[0]) - starting_time) / 1000);
+                        String[] row = new String[]{parts[0],parts[1],parts[2],parts[3]};
+                        csvWriter.writeNext(parts);
+                        csvWriter.close();
+                        for(int i=0;i< NUM_OF_VALUES;i++){
+                            data.addEntry(new Entry(Float.parseFloat(parts[0]),Float.parseFloat(parts[i + 1])),i);
+                            lineDataSets[i].notifyDataSetChanged(); // let the data know a dataSet changed
+                        }
+                        // add received values to line dataset for plotting the linechart
+
+
 
 //                    List<Entry> points = lineDataSet.getValues();
 //                    Float[] t_arr = new Float[points.size()];
@@ -493,14 +541,12 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
 //                    est_steps = obj.toString();
 //                    update_est_steps();
 
-                    mpLineChart.notifyDataSetChanged(); // let the chart know it's data changed
-                    mpLineChart.invalidate(); // refresh
 
 
-                } catch (IOException e) {
+                    } catch (IOException e) {
 
-                    e.printStackTrace();
-                }}
+                        e.printStackTrace();
+                    }}
 
                 msg = msg.replace(TextUtil.newline_crlf, TextUtil.newline_lf);
                 // send msg to function that saves it to csv
@@ -541,7 +587,7 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
     @Override
     public void onSerialRead(byte[] data) {
         try {
-        receive(data);}
+            receive(data);}
         catch (Exception e) {
             e.printStackTrace();
         }
