@@ -252,6 +252,8 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
                     int speechStatus2 = textToSpeech.speak(sentence, TextToSpeech.QUEUE_FLUSH, null);
                 }else if(output.equals("SPACE")) {
                     et_sentence.setText(et_sentence.getText().toString() + " ");
+                }else if(output.equals("ERROR")) {
+                    Toast.makeText(getContext(),"ERROR",Toast.LENGTH_SHORT).show();
                 }
                 else {
                     et_sentence.setText(et_sentence.getText().toString() + output);

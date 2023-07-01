@@ -2,9 +2,9 @@ import numpy as np
 import pandas as pd
 import sklearn
 import pickle
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras.models import load_model
+# import tensorflow as tf
+# from tensorflow import keras
+# from tensorflow.keras.models import load_model
 
 
 def calc_fft(file):
@@ -34,21 +34,23 @@ def identify_letter(t, x, y, z):
     fft_x, fft_y, fft_z, frequencies = calc_fft(df)
 
 
-    model = load_model('/sdcard/csv_dir/model_2.h5')
-    k = 22
-    argument = np.concatenate((np.real(fft_x[:k]), np.imag(fft_x[:k]),
-                                 np.real(fft_y[:k]), np.imag(fft_y[:k]),
-                                    np.real(fft_z[:k]), np.imag(fft_z[:k])), axis=None)
-    argument = np.reshape(argument, (1, argument.shape[0], 1))
-    P = model.predict(argument)
-    return lable_to_letter(np.argmax(P))
-
-    # svm_model = pickle.load(open('/sdcard/csv_dir/svm_model.sav', 'rb'))
+    # model = load_model('/sdcard/csv_dir/model_2-1.h5')
     # k = 22
     # argument = np.concatenate((np.real(fft_x[:k]), np.imag(fft_x[:k]),
-    #                            np.real(fft_y[:k]), np.imag(fft_y[:k]),
-    #                            np.real(fft_z[:k]), np.imag(fft_z[:k])), axis=None).reshape(1, -1)
-    # return lable_to_letter(svm_model.predict(argument)[0])
+    #                              np.real(fft_y[:k]), np.imag(fft_y[:k]),
+    #                                 np.real(fft_z[:k]), np.imag(fft_z[:k])), axis=None)
+    # argument = np.reshape(argument, (1, argument.shape[0], 1))
+    # P = model.predict(argument)
+    # return lable_to_letter(np.argmax(P))
+
+    svm_model = pickle.load(open('/sdcard/csv_dir/svm_model (1).sav', 'rb'))
+    k = 22
+    if k > len(fft_x):
+        return 'ERROR'
+    argument = np.concatenate((np.real(fft_x[:k]), np.imag(fft_x[:k]),
+                               np.real(fft_y[:k]), np.imag(fft_y[:k]),
+                               np.real(fft_z[:k]), np.imag(fft_z[:k])), axis=None).reshape(1, -1)
+    return lable_to_letter(svm_model.predict(argument)[0])
 
 
 
